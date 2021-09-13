@@ -1649,3 +1649,75 @@ func cleanupProject(project *Project) error {
 
 	return nil
 }
+
+// GetSummaryMetricsProjects ...
+func (c *Client) GetSummaryMetricsProjects(vcsType VcsType, account, repo, branch, pageToken, reportingWindow string, allBranches bool) (*Insigths, error) {
+	return c.GetSummaryMetricsProjectsWithContext(context.Background(), vcsType, account, repo, branch, pageToken, reportingWindow, allBranches)
+}
+
+// GetSummaryMetricsProjectsWithContext ...
+func (c *Client) GetSummaryMetricsProjectsWithContext(ctx context.Context, vcsType VcsType, account, repo, branch, pageToken, reportingWindow string, allBranches bool) (*Insigths, error) {
+	if c.Version < APIVersion2 {
+		return nil, newInvalidVersionError(c.Version)
+	}
+
+	if branch == "" && !allBranches {
+		return nil, errors.New("branch parameter is required.")
+	}
+
+	i := &Insigths{}
+	params := url.Values{}
+	if pageToken != "" {
+		params.Add("page-token", pageToken)
+	}
+
+	if allBranches {
+		params.Add("all-branches", "true")
+	} else {
+		params.Add("branch", branch)
+	}
+
+	if reportingWindow != "" {
+		params.Add("reporting-window", reportingWindow)
+	}
+
+	err := c.request(ctx, http.MethodGet, fmt.Sprintf("insights/%s/%s/%s/workflows", vcsType, account, repo), &i, params, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return i, nil
+}
+
+type Insigths struct {
+	NextPageToken string          `json:"next_page_token"`
+	Items         []InsigthsItems `json:"items"`
+}
+
+type DurationMetrics struct {
+	Min               float64 `json:"min"`
+	Mean              float64 `json:"mean"`
+	Median            float64 `json:"median"`
+	P95               float64 `json:"p95"`
+	Max               float64 `json:"max"`
+	StandardDeviation float64 `json:"standard_deviation"`
+}
+
+type Metrics struct {
+	TotalRuns        int             `json:"total_runs"`
+	SuccessfulRuns   int             `json:"successful_runs"`
+	Mttr             float64         `json:"mttr"`
+	TotalCreditsUsed int             `json:"total_credits_used"`
+	FailedRuns       int             `json:"failed_runs"`
+	SuccessRate      float64         `json:"success_rate"`
+	TotalRecoveries  int             `json:"total_recoveries"`
+	Throughput       float64         `json:"throughput"`
+	DurationMetrics  DurationMetrics `json:"duration_metrics"`
+}
+
+type InsigthsItems struct {
+	Name        string    `json:"name"`
+	WindowStart time.Time `json:"window_start"`
+	WindowEnd   time.Time `json:"window_end"`
+	Metrics     Metrics   `json:"metrics"`
+}
