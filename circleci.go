@@ -665,10 +665,11 @@ func (c *Client) BuildByProjectTagWithContext(ctx context.Context, vcsType VcsTy
 // this is useful if you need to trigger a build from a PR froma fork, in which you need to set the revision and the
 // branch in this format `pull/PR_NUMBER`
 // ie.:
-//  map[string]interface{}{
-// 		"revision": "8afbae7ec63b2b0f2786740d03161dbb08ba55f5",
-//		"branch"  : "pull/1234",
-// 	})
+//
+//	 map[string]interface{}{
+//			"revision": "8afbae7ec63b2b0f2786740d03161dbb08ba55f5",
+//			"branch"  : "pull/1234",
+//		})
 //
 // NOTE: this endpoint is only available in the CircleCI API v1.1. in order to call it, you must instantiate the Client
 // object with the following value for BaseURL: &url.URL{Host: "circleci.com", Scheme: "https", Path: "/api/v1.1/"}
@@ -969,7 +970,7 @@ func (c *Client) DeleteCheckoutKeyWithContext(ctx context.Context, vcsType VcsTy
 // AddHerokuKey associates a Heroku key with the user's API token to allow
 // CircleCI to deploy to Heroku on your behalf
 //
-// The API token being used must be a user API token
+// # The API token being used must be a user API token
 //
 // NOTE: It doesn't look like there is currently a way to dissaccociate your
 // Heroku key, so use with care
@@ -1720,4 +1721,47 @@ type InsigthsItems struct {
 	WindowStart time.Time `json:"window_start"`
 	WindowEnd   time.Time `json:"window_end"`
 	Metrics     Metrics   `json:"metrics"`
+}
+
+// GetFlakyTestsForRepo ...
+func (c *Client) GetFlakyTestsForRepo(vcsType VcsType, account, repo string) (*FlakyTests, error) {
+	return c.GetFlakyTestsForRepoWithContext(context.Background(), vcsType, account, repo)
+}
+
+// GetFlakyTestsForRepoWithContext ...
+func (c *Client) GetFlakyTestsForRepoWithContext(ctx context.Context, vcsType VcsType, account, repo string) (*FlakyTests, error) {
+	if c.Version < APIVersion2 {
+		return nil, newInvalidVersionError(c.Version)
+	}
+
+	flakyTests := &FlakyTests{}
+	params := url.Values{}
+
+	err := c.request(ctx, http.MethodGet, fmt.Sprintf("insights/%s/%s/%s/flaky-tests", vcsType, account, repo), &flakyTests, params, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return flakyTests, nil
+}
+
+type FlakyTest struct {
+	WorkfloCreatedAt time.Time `json:"workflow_created_at"`
+	Classname        string    `json:"classname"`
+	JobNumber        int64     `json:"job_number"`
+	TimesFlaked      int64     `json:"times_flaked"`
+	Source           string    `json:"source"`
+	PipelineNumber   int64     `json:"pipeline_number"`
+	File             string    `json:"file"`
+	WorkflowName     string    `json:"workflow_name"`
+	JobName          string    `json:"job_name"`
+	WorkflowId       string    `json:"workflow_id"`
+	TimeWasted       int64     `json:"time_wasted"`
+	TestName         string    `json:"test_name"`
+}
+
+type FlakyTests struct {
+	NextPageToken   string      `json:"next_page_token"`
+	TotalFlakyTests int         `json:"total_flaky_tests"`
+	FlakyTests      []FlakyTest `json:"flaky_tests"`
 }
